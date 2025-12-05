@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sublime Logs - Access</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #8e44ad;
+    --secondary: #e91e63;
+    --glass: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #8e44ad);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    padding: 20px;
+  }
+
+  .container {
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .brand { text-align: center; margin-bottom: 30px; }
+  .brand h1 {
+    font-weight: 800;
+    font-size: 2em;
+    margin: 0;
+    background: linear-gradient(90deg, #fff, #f1f1f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand p { opacity: 0.7; margin-top: 5px; }
+
+  .toggle-box {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 25px;
+    position: relative;
+  }
+  .toggle-btn {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .slider {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    border-radius: 10px;
+    transition: transform 0.3s cubic-bezier(.68,-0.55,.27,1.55);
+  }
+
+  .form-wrapper { position: relative; min-height: 320px; }
+
+  form {
+    position: absolute;
+    width: 100%; top: 0; left: 0;
+    display: flex; flex-direction: column; gap: 15px;
+    transition: 0.3s ease;
+  }
+
+  form.hidden { opacity: 0; pointer-events: none; transform: translateX(20px); }
+  form.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+
+  input {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    color: white;
+    font-size: 16px;
+  }
+  input:focus { border-color: var(--secondary); }
+
+  button {
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    box-shadow: 0 4px 18px rgba(233,30,99,0.3);
+    cursor: pointer;
+  }
+
+  .error-msg { text-align: center; font-size: .85em; color: #ff6b6b; }
+
+  .loader {
+    display: none;
+    position: absolute;
+    top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    justify-content: center;
+    align-items: center;
+    border-radius: 24px;
+    z-index: 10;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #fff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="loader" id="loader"><div class="spinner"></div></div>
+
+  <div class="brand">
+    <h1>Sublime Logs</h1>
+    <p>Access your dashboard</p>
+  </div>
+
+  <div class="toggle-box">
+    <div class="slider" id="slider"></div>
+    <div class="toggle-btn" onclick="switchTab('login')">Login</div>
+    <div class="toggle-btn" onclick="switchTab('signup')">Sign Up</div>
+  </div>
+
+  <div class="form-wrapper">
+    <!-- LOGIN -->
+    <form id="login-form" class="active">
+      <input type="email" id="login-email" placeholder="Email Address" required>
+      <input type="password" id="login-password" placeholder="Password" required>
+      <button type="submit">Log In</button>
+      <div class="error-msg" id="login-error"></div>
+    </form>
+
+    <!-- SIGNUP -->
+    <form id="signup-form" class="hidden">
+      <div style="display:flex; gap:10px;">
+        <input type="text" id="first-name" placeholder="First Name" required>
+        <input type="text" id="surname" placeholder="Surname" required>
+      </div>
+      <input type="email" id="signup-email" placeholder="Email Address" required>
+      <input type="password" id="signup-password" placeholder="Create Password" required>
+      <input type="password" id="signup-confirm" placeholder="Confirm Password" required>
+      <button type="submit">Create Account</button>
+      <div class="error-msg" id="signup-error"></div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+/* --- FIREBASE --- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { 
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  updateProfile, browserLocalPersistence, setPersistence
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+/* CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyDRnNoRJ4Zgtu-KEZAdOAKtou2LV9rdL5c",
+  authDomain: "sublime-log.firebaseapp.com",
+  projectId: "sublime-log",
+  storageBucket: "sublime-log.firebasestorage.app",
+  messagingSenderId: "644554254089",
+  appId: "1:644554254089:web:dd3374c9468046a5a015d8",
+  measurementId: "G-YMPGVWCK16"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* PERSIST LOGIN */
+setPersistence(auth, browserLocalPersistence);
+
+/* TAB SWITCH */
+window.switchTab = (tab) => {
+  const slider = document.getElementById("slider");
+  document.getElementById("login-error").textContent = '';
+  document.getElementById("signup-error").textContent = '';
+
+  if (tab === "login") {
+    document.getElementById("login-form").className = "active";
+    document.getElementById("signup-form").className = "hidden";
+    slider.style.transform = "translateX(0)";
+  } else {
+    document.getElementById("signup-form").className = "active";
+    document.getElementById("login-form").className = "hidden";
+    slider.style.transform = "translateX(100%)";
+  }
+};
+
+/* LOGIN */
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const loader = document.getElementById("loader");
+  loader.style.display = "flex";
+
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    window.location.href = "dashboard1.html";
+  } catch (err) {
+    loader.style.display = "none";
+    document.getElementById("login-error").textContent = friendly(err.code);
+  }
+});
+
+/* SIGNUP */
+document.getElementById("signup-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const loader = document.getElementById("loader");
+  loader.style.display = "flex";
+
+  const fname = document.getElementById("first-name").value.trim();
+  const sname = document.getElementById("surname").value.trim();
+  const email = document.getElementById("signup-email").value.trim();
+  const pass  = document.getElementById("signup-password").value;
+  const confirm = document.getElementById("signup-confirm").value;
+
+  if (pass !== confirm) {
+    loader.style.display = "none";
+    document.getElementById("signup-error").textContent = "Passwords do not match.";
+    return;
+  }
+
+  try {
+    const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+    const user = userCred.user;
+
+    const fullName = `${fname} ${sname}`;
+    await updateProfile(user, { displayName: fullName });
+
+    await setDoc(doc(db, "users", user.uid), {
+      fullName: fullName,
+      firstName: fname,
+      surname: sname,
+      email: email,
+      balance: 0,
+      createdAt: new Date().toISOString()
+    });
+
+    window.location.href = "dashboard1.html";
+
+  } catch (err) {
+    loader.style.display = "none";
+    document.getElementById("signup-error").textContent = friendly(err.code);
+  }
+});
+
+/* FRIENDLY ERRORS */
+function friendly(code) {
+  if (code.includes("email")) return "Invalid or already used email.";
+  if (code.includes("password")) return "Incorrect or weak password.";
+  if (code.includes("not-found")) return "Account not found.";
+  return "Error: " + code;
+}
+
+</script>
+
+</body>
+                                                </html>
