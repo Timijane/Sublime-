@@ -102,7 +102,7 @@
   /* Forms */
   .form-wrapper { 
     position: relative; 
-    min-height: 420px; /* Increased height to accommodate stacked names */
+    min-height: 420px;
   }
 
   form {
@@ -166,10 +166,9 @@
     transform: translateY(-2px); 
   }
 
-  /* --- FIXED: Name fields are now stacked vertically --- */
   .name-fields {
     display: flex;
-    flex-direction: column; /* This makes them stack */
+    flex-direction: column;
     gap: 15px;
     width: 100%;
   }
@@ -246,7 +245,7 @@
     }
     
     input {
-      font-size: 16px; /* Prevents zoom on iOS */
+      font-size: 16px;
     }
   }
 
@@ -377,7 +376,8 @@
     onAuthStateChanged, 
     setPersistence, 
     browserLocalPersistence,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    signOut
   } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
   
   import { 
@@ -387,9 +387,9 @@
     getDoc 
   } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-  // Firebase Configuration
+  // Firebase Configuration (REPLACE with your actual config)
   const firebaseConfig = {
-    apiKey: "AIzaSyDRnNoRJ4Zgtu-KEZAdOAKtou2LV9rdL5c",
+    apiKey: "AIzaSyDRnNoRJ4Zgtu-KEZAdOAKtou2LV9rdL5c", 
     authDomain: "sublime-log.firebaseapp.com",
     projectId: "sublime-log",
     storageBucket: "sublime-log.firebasestorage.app",
@@ -417,20 +417,26 @@
   const resetError = document.getElementById('reset-error');
   const resetSuccess = document.getElementById('reset-success');
 
-  // --- LOGIN CHECK ON PAGE LOAD ---
+  // 🛠️ IMPROVED: LOGIN CHECK ON PAGE LOAD 🛠️
+  // This robustly checks for a session and redirects OR signs out if the user isn't in DB.
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       console.log("Session detected, verifying...");
-      // Check if user is in DB before redirecting
       const userDocRef = doc(db, "users", user.uid);
       try {
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-           // Redirect found
+           // Redirect found, user is authenticated and registered
            window.location.href = "dashboard1.html";
+        } else {
+           // User authenticated via Firebase but not in your Firestore DB (maybe incomplete signup)
+           console.warn("User auth found but not in Firestore. Signing out.");
+           await signOut(auth); // Crucial step to clear the stale session
         }
       } catch (e) {
         console.error("Error verifying user", e);
+        // On verification error, clear session to allow retry
+        await signOut(auth);
       }
     }
   });
@@ -454,7 +460,7 @@
     }
   };
 
-  // Forgot Password
+  // Forgot Password Modal Handlers
   forgotPasswordLink.addEventListener('click', (e) => {
     e.preventDefault();
     resetError.textContent = '';
@@ -478,6 +484,7 @@
       resetError.textContent = 'Please enter a valid email address';
       return;
     }
+    
     sendResetBtn.textContent = 'Sending...';
     sendResetBtn.disabled = true;
     resetError.textContent = '';
@@ -491,6 +498,7 @@
         forgotModal.style.display = 'none';
         sendResetBtn.textContent = 'Send Reset Link';
         sendResetBtn.disabled = false;
+        resetSuccess.textContent = ''; // Clear message after modal close
       }, 3000);
     } catch (error) {
       console.error("Reset error:", error);
@@ -528,10 +536,11 @@
       
       if (userDocSnap.exists()) {
         console.log("Login success. Redirecting...");
-        // 3. FORCE REDIRECT HERE - Do not wait for listener
+        // 3. FORCE REDIRECT HERE
         window.location.href = "dashboard1.html";
       } else {
-        await auth.signOut();
+        // If auth passes but DB check fails, sign out the user
+        await signOut(auth); 
         throw new Error('User not registered. Please sign up first.');
       }
     } catch (error) {
@@ -579,7 +588,7 @@
       await setDoc(doc(db, "users", user.uid), {
         firstName: fname,
         surname: sname,
-        name: fullName, // Added 'name' field for dashboard compatibility
+        name: fullName,
         email: email,
         balance: 0,
         createdAt: new Date().toISOString(),
@@ -603,11 +612,11 @@
       'auth/user-not-found': 'No account found with this email',
       'auth/wrong-password': 'Incorrect password',
       'auth/email-already-in-use': 'Email already registered',
-      'auth/weak-password': 'Password is too weak',
+      'auth/weak-password': 'Password is too weak (min 6 characters)',
       'auth/too-many-requests': 'Too many attempts. Try again later',
       'User not registered. Please sign up first.': 'User not registered. Please sign up first.',
     };
-    return errors[code] || `Error: ${code}`;
+    return errors[code] || `An unexpected error occurred: ${code}`;
   }
 </script>
 
